@@ -1,0 +1,10 @@
+{% if not headok|default(false) -%}
+<?xml version="1.0" encoding="UTF-8"?>
+{% set headok = true -%}
+{% endif -%}
+
+<users>
+{%- for id, name in users %}
+{% include 'user.xml' %}
+{%- endfor %}
+</users>

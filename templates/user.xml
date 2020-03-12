@@ -1,0 +1,10 @@
+{% if not headok|default(false) -%}
+<?xml version="1.0" encoding="UTF-8"?>
+{% set headok = true -%}
+{% endif -%}
+
+<user>
+	<id>{{id}}</id>
+	<name>{{name}}</name>
+	<link rel="images">{{request.host_url}}user/{{id}}/images</link>
+</user>
