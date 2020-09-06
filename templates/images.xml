@@ -3,7 +3,7 @@
 {% set headok = true -%}
 {% endif -%}
 
-<images owner="{{owner_id}}">
+<images>
 {%- for id, title, _ in images %}
 {% include 'image.xml' %}
 {%- endfor %}

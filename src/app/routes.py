@@ -1,7 +1,38 @@
 from . import app, db, view
 from .utils import validate_user_id, validate_user_name
 from .constants import *
-from flask import Response, request, session, abort, send_file
+from base64 import b64decode
+from functools import wraps
+from flask import Response, request, abort, send_file, g
+
+def auth_required(f):
+	@wraps(f)
+	def authenticate(*args, **kwargs):
+		auth = request.headers.get('Authorization', '').strip()
+
+		try:
+			kind, token = auth.split(' ')
+			kind = kind.lower()
+
+			if kind == 'basic':
+				user_id, user_pw = b64decode(token).decode().split(':')
+				details = db.login_user(user_id, user_pw)
+
+				if details:
+					g.user_id, g.user_name = details
+				else:
+					return view.error('Invalid credentials.', HTTP_401_UNAUTHORIZED)
+
+			elif kind == 'bearer':
+				return view.error('TODO...', HTTP_401_UNAUTHORIZED)
+
+		except:
+			return view.error('Invalid or missing credentials.', HTTP_401_UNAUTHORIZED)
+
+		return f(*args, **kwargs)
+
+	return authenticate
+
 
 @app.errorhandler(HTTP_400_BAD_REQUEST)
 @app.errorhandler(HTTP_404_NOT_FOUND)
@@ -11,52 +42,14 @@ def error_handler(error):
 	code = error.code
 	msg = '{}{}'.format(
 		error.name if error.name else 'Error {}'.format(code),
-		(' - ' + error.description) if error.description else ''
+		(': ' + error.description) if error.description else ''
 	)
 
 	return view.error(msg, code)
 
 
-@app.route('/login', methods=('POST',))
-def login():
-	user_id = session.get('user_id')
-
-	if user_id is not None:
-		return view.error('Already logged in.', HTTP_403_FORBIDDEN)
-
-	user_id = request.form.get('id')
-	user_pw = request.form.get('password')
-
-	if not user_id or not user_pw:
-		return view.error('Missing parameters.', HTTP_400_BAD_REQUEST)
-
-	details = db.login_user(user_id, user_pw)
-	if not details:
-		return view.error('Bad credentials.', HTTP_401_UNAUTHORIZED)
-
-	session['user_id'], session['user_name'] = details
-
-	return view.success('Login successful.')
-
-
-@app.route('/logout', methods=('GET',))
-def logout():
-	user_id = session.pop('user_id', None)
-	session.pop('user_name', None)
-
-	if user_id is None:
-		return view.error('Already logged out.', HTTP_403_FORBIDDEN)
-
-	return view.success('Logout successful.')
-
-
 @app.route('/register', methods=('POST',))
 def register():
-	user_id = session.get('user_id')
-
-	if user_id is not None:
-		return view.error('Already logged in, log out first.', HTTP_403_FORBIDDEN)
-
 	user_id   = request.form.get('id')
 	user_name = request.form.get('name', '').strip()
 	user_pw   = request.form.get('password')
@@ -74,75 +67,51 @@ def register():
 	if not details:
 		return view.error('User ID already registered.', HTTP_403_FORBIDDEN)
 
-	session['user_id'], session['user_name'] = details
-
 	return view.success('Registration successful.', HTTP_200_OK)
 
 
 @app.route('/users', methods=('GET',))
+@auth_required
 def users():
 	return view.users(db.get_all_users())
 
 
 @app.route('/user'     , methods=('GET', 'DELETE'), defaults={'id': None})
 @app.route('/user/<id>', methods=('GET', 'DELETE'))
+@auth_required
 def user(**urlparams):
-	logged_user_id   = session.get('user_id')
-	logged_user_name = session.get('user_name')
-
-	if urlparams['id'] is not None:
-		user_id = urlparams['id']
-
-		if request.method == 'GET':
-			user_name = db.get_user_details(user_id)
-	else:
-		if logged_user_id is None:
-			return view.error('Login required.', HTTP_401_UNAUTHORIZED)
-
-		user_id = logged_user_id
-
-		if request.method == 'GET':
-			user_name = logged_user_name
+	user_id   = g.user_id
+	user_name = g.user_name
 
 	if request.method == 'GET':
-		if user_name is None:
-			abort(HTTP_404_NOT_FOUND)
+		if urlparams['id'] is not None:
+			user_id = urlparams['id']
+			user_name = db.get_user_details(user_id)
+
+			if user_name is None:
+				abort(HTTP_404_NOT_FOUND)
 
 		return view.user(user_id, user_name)
 
-	if user_id != logged_user_id:
-		return view.error('Cannot delete a user different from the currently logged in user.', HTTP_401_UNAUTHORIZED)
+	if user_id != g.user_id:
+		return view.error('Cannot delete a user different from yourself.', HTTP_401_UNAUTHORIZED)
 
 	db.delete_user(user_id)
-	session.pop('user_id', None)
-	session.pop('user_name', None)
-
 	return view.success('User successfully deleted. You are now logged out.')
 
 
 @app.route('/user/images'     , methods=('GET',), defaults={'id': None})
 @app.route('/user/<id>/images', methods=('GET',))
+@auth_required
 def user_images(**urlparams):
-	logged_user_id = session.get('user_id')
-
-	if urlparams['id'] is not None:
-		user_id = urlparams['id']
-	else:
-		if logged_user_id is None:
-			return view.error('Login required.', HTTP_401_UNAUTHORIZED)
-
-		user_id = logged_user_id
-
+	user_id = urlparams['id'] if urlparams['id'] is not None else g.user_id
 	return view.user_images(user_id, db.get_all_user_images(user_id))
 
 
 @app.route('/image', methods=('POST',))
+@auth_required
 def image_upload():
-	user_id = session.get('user_id')
-
-	if user_id is None:
-		return view.error('Login required.', HTTP_401_UNAUTHORIZED)
-
+	user_id     = g.user_id
 	image_file  = request.files.get('file')
 	image_title = request.form.get('title', '').strip()
 
@@ -150,7 +119,6 @@ def image_upload():
 		return view.error('Missing parameters.', HTTP_400_BAD_REQUEST)
 
 	image_id = db.save_image(image_file, image_title, user_id)
-
 	if not image_id:
 		return view.error('Unsupported file type, only JPEG allowed.', HTTP_400_BAD_REQUEST)
 
@@ -158,6 +126,7 @@ def image_upload():
 
 
 @app.route('/image/<int:id>', methods=('GET', 'DELETE'))
+@auth_required
 def image(**urlparams):
 	image_id = urlparams['id']
 
@@ -168,7 +137,8 @@ def image(**urlparams):
 	image_title, image_owner = details
 	return view.image(image_id, image_title, image_owner)
 
-@app.route('/image/<int:id>/download', methods=('GET', 'PUT', 'DELETE'))
+@app.route('/image/<int:id>/download', methods=('GET'))
+@auth_required
 def image_download(**urlparams):
 	image_id = urlparams['id']
 

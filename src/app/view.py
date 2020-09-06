@@ -1,21 +1,27 @@
+from .constants import HTTP_401_UNAUTHORIZED
 from os import path
 from flask import Response, request, session, render_template
 
-def gen_template(filename, status=200, **kwargs):
+def gen_template(filename, status=200, auth=False, **kwargs):
 	data = render_template(filename + '.xml', **kwargs)
+	headers = {'Cache-Control': 'no-cache, no-store, must-revalidate'}
+
+	if auth:
+		headers['WWW-Authenticate']  = 'Basic realm="middleware"'
 
 	return Response(
 		data,
 		status=status,
 		content_type='application/xml',
-		headers={'Cache-Control': 'no-cache, no-store, must-revalidate'}
+		headers=headers
 	)
 
 def success(message, status=200):
 	return gen_template('success', status, **{'message': message})
 
 def error(message, status):
-	return gen_template('error', status, **{'code': status, 'message': message})
+	auth = status == HTTP_401_UNAUTHORIZED
+	return gen_template('error', status, auth=auth, **{'code': status, 'message': message})
 
 def user(user_id, user_name):
 	return gen_template('user', **{'id': user_id, 'name': user_name})
