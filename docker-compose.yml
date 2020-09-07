@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  rest:
+    build: .
+    container_name: rest-server
+    command: ./src/main.py
+    restart: always
+    volumes:
+     - ./src:/app/src:ro
+     - ./templates:/app/templates:ro
+     - ./db:/app/db
+    ports:
+      - '80:5000'

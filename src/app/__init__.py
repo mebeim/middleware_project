@@ -1,5 +1,5 @@
 from . import db
-from os import urandom, makedirs
+from os import urandom, makedirs, path
 from flask import Flask
 
 app = Flask('rest-jpg')
@@ -7,7 +7,8 @@ app = Flask('rest-jpg')
 app.secret_key = urandom(64)
 app.config.update({
 	'database'   : 'db/database.sqlite',
-	'upload_path': '/tmp/images'
+	'schema'     : 'db/schema.sql',
+	'upload_path': path.expanduser('~') + '/images'
 })
 
 makedirs(app.config['upload_path'], exist_ok=True)
