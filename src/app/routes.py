@@ -1,38 +1,7 @@
-from . import app, db, view
+from . import app, db, view, auth
 from .utils import validate_user_id, validate_user_name
 from .constants import *
-from base64 import b64decode
-from functools import wraps
 from flask import Response, request, abort, send_file, g
-
-def auth_required(f):
-	@wraps(f)
-	def authenticate(*args, **kwargs):
-		auth = request.headers.get('Authorization', '').strip()
-
-		try:
-			kind, token = auth.split(' ')
-			kind = kind.lower()
-
-			if kind == 'basic':
-				user_id, user_pw = b64decode(token).decode().split(':')
-				details = db.login_user(user_id, user_pw)
-
-				if details:
-					g.user_id, g.user_name = details
-				else:
-					return view.error('Invalid credentials.', HTTP_401_UNAUTHORIZED)
-
-			elif kind == 'bearer':
-				return view.error('TODO...', HTTP_401_UNAUTHORIZED)
-
-		except:
-			return view.error('Invalid or missing credentials.', HTTP_401_UNAUTHORIZED)
-
-		return f(*args, **kwargs)
-
-	return authenticate
-
 
 @app.errorhandler(HTTP_400_BAD_REQUEST)
 @app.errorhandler(HTTP_404_NOT_FOUND)
@@ -71,46 +40,49 @@ def register():
 
 
 @app.route('/users', methods=('GET',))
-@auth_required
+@auth.auth_required()
 def users():
 	return view.users(db.get_all_users())
 
 
-@app.route('/user'     , methods=('GET', 'DELETE'), defaults={'id': None})
-@app.route('/user/<id>', methods=('GET', 'DELETE'))
-@auth_required
+@app.route('/user/<id>', methods=('GET',))
+@auth.auth_required()
 def user(**urlparams):
-	user_id   = g.user_id
-	user_name = g.user_name
+	user_id   = urlparams['id']
+	user_name = db.get_user_name(user_id)
 
-	if request.method == 'GET':
-		if urlparams['id'] is not None:
-			user_id = urlparams['id']
-			user_name = db.get_user_details(user_id)
+	if user_name is None:
+		abort(HTTP_404_NOT_FOUND)
 
-			if user_name is None:
-				abort(HTTP_404_NOT_FOUND)
+	return view.user(user_id, user_name)
 
-		return view.user(user_id, user_name)
+
+@app.route('/user/<id>', methods=('DELETE',))
+@auth.auth_required(oauth=False)
+def user_delete(**urlparams):
+	user_id = urlparams['id']
 
 	if user_id != g.user_id:
-		return view.error('Cannot delete a user different from yourself.', HTTP_401_UNAUTHORIZED)
+		return view.error('Cannot delete a user different from yourself.', HTTP_403_FORBIDDEN)
 
 	db.delete_user(user_id)
-	return view.success('User successfully deleted. You are now logged out.')
+	return view.success('User successfully deleted.')
 
 
 @app.route('/user/images'     , methods=('GET',), defaults={'id': None})
 @app.route('/user/<id>/images', methods=('GET',))
-@auth_required
+@auth.auth_required()
 def user_images(**urlparams):
 	user_id = urlparams['id'] if urlparams['id'] is not None else g.user_id
 	return view.user_images(user_id, db.get_all_user_images(user_id))
 
 
-@app.route('/image', methods=('POST',))
-@auth_required
+@app.route('/upload', methods=('POST',))
+@auth.auth_required()
 def image_upload():
+	if not auth.can_write():
+		return view.error('You do not have the appropriate scopes to perform this action.', HTTP_403_FORBIDDEN)
+
 	user_id     = g.user_id
 	image_file  = request.files.get('file')
 	image_title = request.form.get('title', '').strip()
@@ -126,7 +98,7 @@ def image_upload():
 
 
 @app.route('/image/<int:id>', methods=('GET', 'DELETE'))
-@auth_required
+@auth.auth_required()
 def image(**urlparams):
 	image_id = urlparams['id']
 
@@ -135,10 +107,22 @@ def image(**urlparams):
 		abort(HTTP_404_NOT_FOUND)
 
 	image_title, image_owner = details
-	return view.image(image_id, image_title, image_owner)
 
-@app.route('/image/<int:id>/download', methods=('GET'))
-@auth_required
+	if request.method == 'GET':
+		return view.image(image_id, image_title, image_owner)
+	elif request.method == 'DELETE':
+		if not auth.can_write():
+			return view.error('You do not have the appropriate scopes to perform this action.', HTTP_403_FORBIDDEN)
+
+		if image_owner != g.user_id:
+			return view.error("Cannot delete images of other users.", HTTP_403_FORBIDDEN)
+
+		db.delete_image(image_id)
+		return view.success('Image successfully deleted.')
+
+
+@app.route('/image/<int:id>/download', methods=('GET',))
+@auth.auth_required()
 def image_download(**urlparams):
 	image_id = urlparams['id']
 
@@ -147,3 +131,52 @@ def image_download(**urlparams):
 		abort(HTTP_404_NOT_FOUND)
 
 	return send_file(image_path)
+
+
+@app.route('/oauth/token', methods=('GET',))
+@auth.auth_required(oauth=False)
+def oauth_gen_token():
+	scopes = request.args.get('scopes', '')
+	if not scopes:
+		return view.error('Missing required request parameter: scopes.', HTTP_400_BAD_REQUEST)
+
+	token = auth.gen_token(g.user_id, scopes)
+	if token is None:
+		return view.error('Invalid token scopes.', HTTP_400_BAD_REQUEST)
+
+	return view.token(token, g.user_id, scopes)
+
+
+@app.route('/oauth/tokens', methods=('GET',))
+@auth.auth_required(oauth=False)
+def oauth_list_tokens():
+	return view.user_tokens(g.user_id, db.get_all_user_tokens(g.user_id))
+
+
+@app.route('/oauth/token/<tok>', methods=('GET',))
+@auth.auth_required()
+def oauth_get_token(**urlparams):
+	token = urlparams['tok']
+	if not token:
+		abort(HTTP_404_NOT_FOUND)
+
+	details = db.get_oauth_token_details(token)
+	if details is None:
+		abort(HTTP_404_NOT_FOUND)
+
+	return view.token(*details)
+
+
+@app.route('/oauth/token/<tok>', methods=('DELETE',))
+@auth.auth_required(oauth=False)
+def oauth_revoke_token(**urlparams):
+	token = urlparams['tok'].strip()
+	if not token:
+		abort(HTTP_404_NOT_FOUND)
+
+	tok = db.get_oauth_token_details(token)
+	if tok is None:
+		abort(HTTP_404_NOT_FOUND)
+
+	db.delete_oauth_token(token)
+	return view.success('OAuth token successfully revoked.')

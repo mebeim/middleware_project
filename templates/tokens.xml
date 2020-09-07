@@ -1,0 +1,10 @@
+{% if not headok|default(false) -%}
+<?xml version="1.0" encoding="UTF-8"?>
+{% set headok = true -%}
+{% endif -%}
+
+<tokens>
+{%- for value, user_id, scopes in tokens %}
+{% include 'token.xml' %}
+{%- endfor %}
+</tokens>

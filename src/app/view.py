@@ -7,7 +7,7 @@ def gen_template(filename, status=200, auth=False, **kwargs):
 	headers = {'Cache-Control': 'no-cache, no-store, must-revalidate'}
 
 	if auth:
-		headers['WWW-Authenticate']  = 'Basic realm="middleware"'
+		headers['WWW-Authenticate']  = 'Basic realm="middleware"\nBearer realm="middleware"'
 
 	return Response(
 		data,
@@ -37,3 +37,9 @@ def user_images(user_id, user_images):
 
 def upload_success(image_id, image_title, owner_id):
 	return image(image_id, image_title, owner_id)
+
+def token(token, user_id, scopes):
+	return gen_template('token', **{'value': token, 'user_id': user_id, 'scopes': scopes})
+
+def user_tokens(user_id, user_tokens):
+	return gen_template('tokens', user_id=user_id, tokens=user_tokens)

@@ -1,0 +1,11 @@
+{% if not headok|default(false) -%}
+<?xml version="1.0" encoding="UTF-8"?>
+{% set headok = true -%}
+{% endif -%}
+
+<token>
+	<value>{{value}}</value>
+	<user-id>{{user_id}}</user-id>
+	<scopes>{{scopes}}</scopes>
+	<link rel="user">{{request.host_url}}user/{{user_id}}</link>
+</token>

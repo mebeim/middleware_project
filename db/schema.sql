@@ -1,5 +1,6 @@
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS images;
+DROP TABLE IF EXISTS oauth_tokens;
 
 CREATE TABLE users (
 	id TEXT PRIMARY KEY,
@@ -11,5 +12,12 @@ CREATE TABLE images (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	title TEXT NOT NULL,
 	owner TEXT NOT NULL,
-	FOREIGN KEY (owner) REFERENCES Users (id)
+	FOREIGN KEY (owner) REFERENCES users (id)
+);
+
+CREATE TABLE oauth_tokens (
+	token CHAR(128) PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	scopes TEXT NOT NULL,
+	FOREIGN KEY (user_id) REFERENCES users (id)
 );
