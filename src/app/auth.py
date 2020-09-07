@@ -1,5 +1,6 @@
-from . import db, view
-from .constants import HTTP_400_BAD_REQUEST, HTTP_401_UNAUTHORIZED
+from . import view
+from .model import User, Image, Token
+from .constants import HTTP_400_BAD_REQUEST, HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
 from os import urandom
 from base64 import b64decode
 from functools import wraps
@@ -7,22 +8,12 @@ from flask import request, g
 
 OAUTH_SCOPES = {'read', 'write'}
 
-def gen_token(user_id, scopes):
-	sc = scopes.split()
-	if not sc or any(s not in OAUTH_SCOPES for s in sc):
-		return None
-
-	token = urandom(64).hex()
-	row = db.save_oauth_token(user_id, token, scopes)
-
-	while row is None:
-		token = urandom(64).hex()
-		row = db.save_oauth_token(user_id, token, scopes)
-
-	return token
+def check_scopes(scopes):
+	sc = set(scopes.strip().split())
+	return sc and all(s in OAUTH_SCOPES for s in sc)
 
 
-def auth_required(basic=True, oauth=True):
+def auth_required(allow_basic=True, allow_oauth='read', owner_only=False):
 	def decorator(f):
 		@wraps(f)
 		def authenticate(*args, **kwargs):
@@ -35,7 +26,7 @@ def auth_required(basic=True, oauth=True):
 				return view.error('Invalid or missing credentials.', HTTP_401_UNAUTHORIZED)
 
 			if kind == 'basic':
-				if not basic:
+				if not allow_basic:
 					return view.error('Invalid credential type for this endpoint.', HTTP_400_BAD_REQUEST)
 
 				try:
@@ -43,23 +34,26 @@ def auth_required(basic=True, oauth=True):
 				except:
 					return view.error('Malformed credentials.', HTTP_400_BAD_REQUEST)
 
-				details = db.login_user(user_id, user_pw)
-				if not details:
+				user = User.login(user_id, user_pw)
+				if user is None:
 					return view.error('Invalid credentials.', HTTP_401_UNAUTHORIZED)
 
-				g.user_id, g.user_name = details
+				g.user = user
 				g.auth_type = 'basic'
 
 			elif kind == 'bearer':
-				if not oauth:
+				if not allow_oauth:
 					return view.error('Invalid credential type for this endpoint.', HTTP_400_BAD_REQUEST)
 
-				details = db.oauth_user(token)
-				if details is None:
+				token = Token.get(token)
+				if token is None:
 					return view.error('Invalid token.', HTTP_401_UNAUTHORIZED)
 
-				g.user_id, g.user_name, g.oauth_scopes = details
-				g.oauth_scopes = set(g.oauth_scopes.split(' '))
+				if allow_oauth != '*' and allow_oauth not in token.scopes:
+					return view.error('Token has insufficient authorization scopes.', HTTP_403_FORBIDDEN)
+
+				g.token = token
+				g.user = token.user
 				g.auth_type = 'oauth'
 
 			else:

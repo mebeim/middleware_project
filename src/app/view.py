@@ -1,13 +1,11 @@
 from .constants import HTTP_401_UNAUTHORIZED
 from os import path
-from flask import Response, request, session, render_template
+from flask import Response, request, render_template
 
-def gen_template(filename, status=200, auth=False, **kwargs):
+def gen_template(filename, status=200, add_headers={}, **kwargs):
 	data = render_template(filename + '.xml', **kwargs)
 	headers = {'Cache-Control': 'no-cache, no-store, must-revalidate'}
-
-	if auth:
-		headers['WWW-Authenticate']  = 'Basic realm="middleware"\nBearer realm="middleware"'
+	headers.update(add_headers)
 
 	return Response(
 		data,
@@ -16,30 +14,55 @@ def gen_template(filename, status=200, auth=False, **kwargs):
 		headers=headers
 	)
 
+
 def success(message, status=200):
-	return gen_template('success', status, **{'message': message})
+	return gen_template('success', status, message=message)
+
+
+def success_redirect(message, redirect_path, status=303):
+	headers = {'Location': request.host_url + redirect_path}
+	return gen_template('success', status, headers, message=message)
+
 
 def error(message, status):
-	auth = status == HTTP_401_UNAUTHORIZED
-	return gen_template('error', status, auth=auth, **{'code': status, 'message': message})
+	if status == HTTP_401_UNAUTHORIZED:
+		headers = {'WWW-Authenticate': 'Basic realm="Middleware project", charset="UTF-8"'}
+	else:
+		headers = {}
 
-def user(user_id, user_name):
-	return gen_template('user', **{'id': user_id, 'name': user_name})
+	return gen_template('error', status, headers, code=status, message=message)
+
+
+def user(u):
+	return gen_template('user', id=u.id, name=u.name)
+
 
 def users(all_users):
-	return gen_template('users', **{'users': all_users})
+	def g():
+		for u in all_users:
+			yield u.id, u.name
 
-def image(image_id, image_title, owner_id):
-	return gen_template('image', id=image_id, title=image_title, owner_id=owner_id)
+	return gen_template('users', users=g())
 
-def user_images(user_id, user_images):
-	return gen_template('images', owner_id=user_id, images=user_images)
+def image(i):
+	return gen_template('image', id=i.id, title=i.title, owner_id=i.owner_id)
 
-def upload_success(image_id, image_title, owner_id):
-	return image(image_id, image_title, owner_id)
 
-def token(token, user_id, scopes):
-	return gen_template('token', **{'value': token, 'user_id': user_id, 'scopes': scopes})
+def user_images(images):
+	def g():
+		for i in images:
+			yield i.id, i.title, i.owner_id
 
-def user_tokens(user_id, user_tokens):
-	return gen_template('tokens', user_id=user_id, tokens=user_tokens)
+	return gen_template('images', images=g())
+
+
+def token(t):
+	return gen_template('token', value=t.value, user_id=t.user_id, scopes=' '.join(t.scopes))
+
+
+def user_tokens(tokens):
+	def g():
+		for t in tokens:
+			yield t.value, t.user_id, t.scopes
+
+	return gen_template('tokens', tokens=g())

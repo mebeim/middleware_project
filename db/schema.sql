@@ -11,8 +11,8 @@ CREATE TABLE users (
 CREATE TABLE images (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	title TEXT NOT NULL,
-	owner TEXT NOT NULL,
-	FOREIGN KEY (owner) REFERENCES users (id)
+	owner_id TEXT NOT NULL,
+	FOREIGN KEY (owner_id) REFERENCES users (id)
 );
 
 CREATE TABLE oauth_tokens (

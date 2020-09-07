@@ -4,7 +4,7 @@
 {% endif -%}
 
 <images>
-{%- for id, title, _ in images %}
+{%- for id, title, owner_id in images %}
 {% include 'image.xml' %}
 {%- endfor %}
 </images>

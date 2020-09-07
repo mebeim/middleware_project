@@ -1,7 +1,8 @@
-from . import app, db, view, auth
-from .utils import validate_user_id, validate_user_name
+from . import app, view, auth
+from .model import *
 from .constants import *
-from flask import Response, request, abort, send_file, g
+from .utils import validate_user_id, validate_user_name, validate_jpeg_file
+from flask import request, abort, send_file, redirect, g
 
 @app.errorhandler(HTTP_400_BAD_REQUEST)
 @app.errorhandler(HTTP_404_NOT_FOUND)
@@ -32,151 +33,153 @@ def register():
 	if not validate_user_name(user_name):
 		return view.error('Invalid name.', HTTP_400_BAD_REQUEST)
 
-	details = db.register_user(user_id, user_name, user_pw)
-	if not details:
+	user = User.register(user_id, user_name, user_pw)
+	if not user:
 		return view.error('User ID already registered.', HTTP_403_FORBIDDEN)
 
 	return view.success('Registration successful.', HTTP_200_OK)
 
 
 @app.route('/users', methods=('GET',))
-@auth.auth_required()
+@auth.auth_required(allow_oauth=False)
 def users():
-	return view.users(db.get_all_users())
+	return view.users(User.get_all())
 
 
 @app.route('/user/<id>', methods=('GET',))
 @auth.auth_required()
 def user(**urlparams):
-	user_id   = urlparams['id']
-	user_name = db.get_user_name(user_id)
+	user_id = urlparams['id']
+	if g.auth_type == 'oauth' and g.user.id != user_id:
+		return view.error('Cannot access other users.', HTTP_403_FORBIDDEN)
 
-	if user_name is None:
+	user = User.get(user_id)
+	if user is None:
 		abort(HTTP_404_NOT_FOUND)
 
-	return view.user(user_id, user_name)
+	return view.user(user)
 
 
 @app.route('/user/<id>', methods=('DELETE',))
-@auth.auth_required(oauth=False)
+@auth.auth_required(allow_oauth=False)
 def user_delete(**urlparams):
-	user_id = urlparams['id']
-
-	if user_id != g.user_id:
+	if urlparams['id'] != g.user.id:
 		return view.error('Cannot delete a user different from yourself.', HTTP_403_FORBIDDEN)
 
-	db.delete_user(user_id)
+	g.user.delete()
 	return view.success('User successfully deleted.')
 
 
-@app.route('/user/images'     , methods=('GET',), defaults={'id': None})
 @app.route('/user/<id>/images', methods=('GET',))
 @auth.auth_required()
 def user_images(**urlparams):
-	user_id = urlparams['id'] if urlparams['id'] is not None else g.user_id
-	return view.user_images(user_id, db.get_all_user_images(user_id))
+	user_id = urlparams['id']
+	if g.auth_type == 'oauth' and g.user.id != user_id:
+		return view.error('Cannot access images owned by other users.', HTTP_403_FORBIDDEN)
+
+	user = User.get(user_id)
+	if user is None:
+		abort(HTTP_404_NOT_FOUND)
+
+	return view.user_images(user.images)
 
 
 @app.route('/upload', methods=('POST',))
-@auth.auth_required()
+@auth.auth_required(allow_oauth='write')
 def image_upload():
-	if not auth.can_write():
-		return view.error('You do not have the appropriate scopes to perform this action.', HTTP_403_FORBIDDEN)
-
-	user_id     = g.user_id
 	image_file  = request.files.get('file')
+	if image_file is None:
+		return view.error('Missing required request parameter: file.', HTTP_400_BAD_REQUEST)
+
 	image_title = request.form.get('title', '').strip()
+	if not image_title:
+		return view.error('Missing required request parameter: title.', HTTP_400_BAD_REQUEST)
 
-	if image_file is None or not image_title:
-		return view.error('Missing parameters.', HTTP_400_BAD_REQUEST)
-
-	image_id = db.save_image(image_file, image_title, user_id)
-	if not image_id:
+	if not validate_jpeg_file(image_file):
 		return view.error('Unsupported file type, only JPEG allowed.', HTTP_400_BAD_REQUEST)
 
-	return view.upload_success(image_id, image_title, user_id)
+	image = Image.upload(image_title, g.user.id, image_file)
+	return view.success_redirect('Image successfully uploaded.', 'image/{}'.format(image.id))
 
 
-@app.route('/image/<int:id>', methods=('GET', 'DELETE'))
+@app.route('/image/<int:id>', methods=('GET',))
 @auth.auth_required()
-def image(**urlparams):
+def image_get(**urlparams):
 	image_id = urlparams['id']
 
-	details = db.get_image_details(image_id)
-	if not details:
+	image = Image.get(image_id)
+	if image is None:
 		abort(HTTP_404_NOT_FOUND)
 
-	image_title, image_owner = details
+	if g.auth_type == 'oauth' and image.owner_id != g.user.id:
+		return view.error('Cannot access images owned by other users.', HTTP_403_FORBIDDEN)
 
-	if request.method == 'GET':
-		return view.image(image_id, image_title, image_owner)
-	elif request.method == 'DELETE':
-		if not auth.can_write():
-			return view.error('You do not have the appropriate scopes to perform this action.', HTTP_403_FORBIDDEN)
+	return view.image(image)
 
-		if image_owner != g.user_id:
-			return view.error("Cannot delete images of other users.", HTTP_403_FORBIDDEN)
 
-		db.delete_image(image_id)
-		return view.success('Image successfully deleted.')
+@app.route('/image/<int:id>', methods=('DELETE',))
+@auth.auth_required(allow_oauth='write')
+def image_delete(**urlparams):
+	image = Image.get(urlparams['id'])
+	if image is None:
+		abort(HTTP_404_NOT_FOUND)
+
+	if image.owner_id != g.user.id:
+		return view.error("Cannot delete images owned by other users.", HTTP_403_FORBIDDEN)
+
+	image.delete()
+	return view.success('Image successfully deleted.')
 
 
 @app.route('/image/<int:id>/download', methods=('GET',))
 @auth.auth_required()
 def image_download(**urlparams):
-	image_id = urlparams['id']
-
-	image_path = db.get_image_path(image_id)
-	if image_path is None:
+	image = Image.get(urlparams['id'])
+	if image is None:
 		abort(HTTP_404_NOT_FOUND)
 
-	return send_file(image_path)
+	if g.auth_type == 'oauth' and image.owner_id != g.user.id:
+		return view.error('Cannot access images owned by other users.', HTTP_403_FORBIDDEN)
+
+	return send_file(image.path)
 
 
 @app.route('/oauth/token', methods=('GET',))
-@auth.auth_required(oauth=False)
+@auth.auth_required(allow_oauth=False)
 def oauth_gen_token():
 	scopes = request.args.get('scopes', '')
 	if not scopes:
 		return view.error('Missing required request parameter: scopes.', HTTP_400_BAD_REQUEST)
 
-	token = auth.gen_token(g.user_id, scopes)
+	token = Token.generate(g.user.id, scopes)
 	if token is None:
 		return view.error('Invalid token scopes.', HTTP_400_BAD_REQUEST)
 
-	return view.token(token, g.user_id, scopes)
+	return view.token(token)
 
 
 @app.route('/oauth/tokens', methods=('GET',))
-@auth.auth_required(oauth=False)
+@auth.auth_required(allow_oauth=False)
 def oauth_list_tokens():
-	return view.user_tokens(g.user_id, db.get_all_user_tokens(g.user_id))
+	return view.user_tokens(g.user.tokens)
 
 
 @app.route('/oauth/token/<tok>', methods=('GET',))
 @auth.auth_required()
 def oauth_get_token(**urlparams):
-	token = urlparams['tok']
-	if not token:
+	token = Token.get(urlparams['tok'])
+	if token is None:
 		abort(HTTP_404_NOT_FOUND)
 
-	details = db.get_oauth_token_details(token)
-	if details is None:
-		abort(HTTP_404_NOT_FOUND)
-
-	return view.token(*details)
+	return view.token(token)
 
 
 @app.route('/oauth/token/<tok>', methods=('DELETE',))
-@auth.auth_required(oauth=False)
+@auth.auth_required(allow_oauth=False)
 def oauth_revoke_token(**urlparams):
-	token = urlparams['tok'].strip()
-	if not token:
+	token = Token.get(urlparams['tok'])
+	if token is None:
 		abort(HTTP_404_NOT_FOUND)
 
-	tok = db.get_oauth_token_details(token)
-	if tok is None:
-		abort(HTTP_404_NOT_FOUND)
-
-	db.delete_oauth_token(token)
+	token.delete()
 	return view.success('OAuth token successfully revoked.')
