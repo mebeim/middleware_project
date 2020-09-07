@@ -1,4 +1,5 @@
 import os
+import sys
 import sqlite3
 from .utils import validate_jpeg_file
 from hashlib import sha512
@@ -9,12 +10,14 @@ from flask import current_app, g
 def get_db():
 	if 'db' not in g:
 		db_path = current_app.config['database']
-		init = not os.path.isfile(db_path)
+		init = '--reset-db' in sys.argv or not os.path.isfile(db_path)
 		g.db = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
 		g.db.row_factory = sqlite3.Row
 
 		if init:
-			with current_app.open_resource('db/schema.sql') as f:
+			schema_path = current_app.config['schema']
+
+			with current_app.open_resource(schema_path) as f:
 				g.db.executescript(f.read().decode())
 
 	return g.db
