@@ -3,8 +3,8 @@ DROP TABLE IF EXISTS images;
 DROP TABLE IF EXISTS oauth_tokens;
 
 CREATE TABLE users (
-	id TEXT PRIMARY KEY,
-	name TEXT NOT NULL,
+	id VARCHAR(255) PRIMARY KEY,
+	name VARCHAR(255) NOT NULL,
 	password_hash CHAR(128) NOT NULL
 );
 
