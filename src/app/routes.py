@@ -144,18 +144,55 @@ def image_download(**urlparams):
 	return send_file(image.path)
 
 
-@app.route('/oauth/token', methods=('GET',))
+@app.route('/oauth/register-client', methods=('POST',))
+def oauth_register_client():
+	client_name = request.form.get('name', '').strip()
+	if not client_name:
+		return view.error('Missing required request parameter: name.', HTTP_400_BAD_REQUEST)
+
+	redirect_uri = request.form.get('redirect_uri', '').strip()
+	if not redirect_uri:
+		return view.error('Missing required request parameter: redirect_uri.', HTTP_400_BAD_REQUEST)
+
+	if not validate_user_name(client_name):
+		return view.error('Invalid name.', HTTP_400_BAD_REQUEST)
+
+	client = Client.register(client_name, redirect_uri)
+	return view.client_with_secret(client)
+
+
+@app.route('/oauth/authorize', methods=('GET',))
 @auth.auth_required(allow_oauth=False)
-def oauth_gen_token():
-	scopes = request.args.get('scopes', '')
-	if not scopes:
-		return view.error('Missing required request parameter: scopes.', HTTP_400_BAD_REQUEST)
+def oauth_authorize():
+	keys = ('response_type', 'client_id', 'redirect_uri', 'scopes')
 
-	token = Token.generate(g.user.id, scopes)
+	for k in keys:
+		if k not in request.args:
+			return view.error(f'Missing required request parameter: {k}.', HTTP_400_BAD_REQUEST)
+
+	response_type = request.args['response_type']
+	if response_type != 'token':
+		return view.error('Unsupported response_type.', HTTP_400_BAD_REQUEST)
+
+	response_mode = request.args.get('response_mode', 'fragment')
+	if response_mode != 'fragment':
+		return view.error('Unsupported response_mode.', HTTP_400_BAD_REQUEST)
+
+	client = Client.get(request.args['client_id'])
+	if client == None:
+		return view.error('Invalid client_id.', HTTP_400_BAD_REQUEST)
+
+	redirect_uri = request.args['redirect_uri']
+	if redirect_uri != client.redirect_uri:
+		return view.error('Invalid redirect_uri.', HTTP_400_BAD_REQUEST)
+
+	scopes = request.args['scopes']
+	token = Token.generate(g.user.id, client.id, scopes)
 	if token is None:
-		return view.error('Invalid token scopes.', HTTP_400_BAD_REQUEST)
+		return view.error('Invalid scopes.', HTTP_400_BAD_REQUEST)
 
-	return view.token(token)
+	redirect_uri = f'{redirect_uri}?token={token.value}'
+	return view.success_redirect('Client successfully authorized.', redirect_uri, status=302, this_host=False)
 
 
 @app.route('/oauth/tokens', methods=('GET',))
@@ -183,3 +220,13 @@ def oauth_revoke_token(**urlparams):
 
 	token.delete()
 	return view.success('OAuth token successfully revoked.')
+
+
+@app.route('/oauth/client/<id>', methods=('GET',))
+@auth.auth_required()
+def oauth_get_client(**urlparams):
+	client = Client.get(urlparams['id'])
+	if client is None:
+		abort(HTTP_404_NOT_FOUND)
+
+	return view.client(client)

@@ -3,9 +3,10 @@ from . import db, auth
 from contextlib import suppress
 from sqlite3 import IntegrityError
 from hashlib import sha512
+from shutil import rmtree
 from flask import current_app
 
-__all__ = ['User', 'Image', 'Token']
+__all__ = ['User', 'Image', 'Token', 'Client']
 
 class User:
 	def __init__(self, idd, name):
@@ -31,7 +32,7 @@ class User:
 		return User(*row)
 
 	@staticmethod
-	def get_all(idd):
+	def get_all():
 		for row in db.query_all('SELECT id, name FROM users ORDER BY id'):
 			yield User(*row)
 
@@ -58,12 +59,12 @@ class User:
 
 	def delete(self):
 		db.write_and_commit(
-			('DELETE FROM users WHERE id=?', (user_id,)),
-			('DELETE FROM images WHERE owner_id=?', (user_id,)),
-			('DELETE FROM oauth_tokens WHERE user_id=?', (user_id,))
+			('DELETE FROM users WHERE id=?', (self.id,)),
+			('DELETE FROM images WHERE owner_id=?', (self.id,)),
+			('DELETE FROM oauth_tokens WHERE user_id=?', (self.id,))
 		)
 
-		user_dir = os.path.join(current_app.config['upload_path'], user_id)
+		user_dir = os.path.join(current_app.config['upload_path'], self.id)
 		rmtree(user_dir, ignore_errors=True)
 
 
@@ -104,11 +105,13 @@ class Image:
 
 
 class Token:
-	def __init__(self, value, user_id, scopes):
-		self.value   = value
-		self.user_id = user_id
-		self.scopes  = set(scopes.split())
-		self._user   = None
+	def __init__(self, value, user_id, client_id, scopes):
+		self.value     = value
+		self.user_id   = user_id
+		self.client_id = client_id
+		self.scopes    = set(scopes.split())
+		self._user     = None
+		self._client   = None
 
 	@property
 	def user(self):
@@ -118,16 +121,24 @@ class Token:
 
 		return self._user
 
+	@property
+	def client(self):
+		if self._client is None:
+			row = db.query_one('SELECT * FROM clients WHERE id=?', (self.client_id,))
+			self._client = Client(*row)
+
+		return self._client
+
 	@staticmethod
 	def get(value):
-		row = db.query_one('SELECT token, user_id, scopes FROM oauth_tokens WHERE token=?', (value,))
+		row = db.query_one('SELECT token, user_id, client_id, scopes FROM oauth_tokens WHERE token=?', (value,))
 		if row is None:
 			return None
 
 		return Token(*row)
 
 	@staticmethod
-	def generate(user_id, scopes):
+	def generate(user_id, client_id, scopes):
 		if not auth.check_scopes(scopes):
 			return None
 
@@ -135,12 +146,48 @@ class Token:
 			value = os.urandom(64).hex()
 
 			try:
-				db.write_and_commit(('INSERT INTO oauth_tokens (token, user_id, scopes) VALUES (?, ?, ?)', (value, user_id, scopes)))
+				db.write_and_commit(('INSERT INTO oauth_tokens (token, user_id, client_id, scopes) VALUES (?, ?, ?, ?)', (value, user_id, client_id, scopes)))
 				break
 			except IntegrityError:
 				continue
 
-		return Token(value, user_id, scopes)
+		return Token(value, user_id, client_id, scopes)
 
 	def delete(self):
 		db.write_and_commit(('DELETE FROM oauth_tokens WHERE token=?', (self.value,)))
+
+
+class Client:
+	def __init__(self, idd, name, redirect_uri, secret):
+		self.id           = idd
+		self.name         = name
+		self.redirect_uri = redirect_uri
+		self.secret       = secret
+
+	@staticmethod
+	def register(name, redirect_uri):
+		idd    = '$' + os.urandom(32).hex()
+		secret = os.urandom(64).hex()
+
+		try:
+			db.write_and_commit(('INSERT INTO clients (id, name, redirect_uri, secret) VALUES (?, ?, ?, ?)', (idd, name, redirect_uri, secret)))
+		except IntegrityError:
+			return None
+
+		return Client(idd, name, redirect_uri, secret)
+
+	@staticmethod
+	def login(idd, secret):
+		row = db.query_one('SELECT * FROM clients WHERE id=? AND secret=?', (idd, secret))
+		if row is None:
+			return None
+
+		return Client(*row)
+
+	@staticmethod
+	def get(idd):
+		row = db.query_one('SELECT * FROM clients WHERE id=?', (idd,))
+		if row is None:
+			return None
+
+		return Client(*row)

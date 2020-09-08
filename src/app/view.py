@@ -19,8 +19,8 @@ def success(message, status=200):
 	return gen_template('success', status, message=message)
 
 
-def success_redirect(message, redirect_path, status=303):
-	headers = {'Location': request.host_url + redirect_path}
+def success_redirect(message, redirect_path, status=303, this_host=True):
+	headers = {'Location': (request.host_url if this_host else '') + redirect_path}
 	return gen_template('success', status, headers, message=message)
 
 
@@ -54,6 +54,14 @@ def user_images(images):
 			yield i.id, i.title, i.owner_id
 
 	return gen_template('images', images=g())
+
+
+def client(c):
+	return gen_template('client', name=c.name, id=c.id, redirect_uri=c.redirect_uri)
+
+
+def client_with_secret(c):
+	return gen_template('client', name=c.name, id=c.id, redirect_uri=c.redirect_uri, secret=c.secret)
 
 
 def token(t):

@@ -1,0 +1,11 @@
+{% if not headok|default(false) -%}
+<?xml version="1.0" encoding="UTF-8"?>
+{% set headok = true -%}
+{% endif -%}
+
+<client>
+	<name>{{name}}</name>
+	<id>{{id}}</id>
+	<redirect-uri>{{redirect_uri}}</redirect-uri>
+	{% if secret is defined %}<secret>{{secret}}</secret>{% endif %}
+</client>

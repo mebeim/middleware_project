@@ -38,7 +38,7 @@ def get_cursor():
 	return get_db().cursor()
 
 
-def query_one(query, parameters):
+def query_one(query, parameters=None):
 	c = get_cursor()
 
 	if parameters:
@@ -49,7 +49,7 @@ def query_one(query, parameters):
 	return c.fetchone()
 
 
-def query_all(query, parameters):
+def query_all(query, parameters=None):
 	c = get_cursor()
 
 	if parameters:
