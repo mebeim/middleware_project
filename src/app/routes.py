@@ -2,7 +2,7 @@ from . import app, view, auth
 from .model import *
 from .constants import *
 from .utils import validate_user_id, validate_user_name, validate_jpeg_file
-from flask import request, abort, send_file, redirect, g
+from flask import request, abort, send_file, g
 
 @app.errorhandler(HTTP_400_BAD_REQUEST)
 @app.errorhandler(HTTP_404_NOT_FOUND)

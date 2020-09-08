@@ -1,7 +1,6 @@
 from . import view
 from .model import *
 from .constants import HTTP_400_BAD_REQUEST, HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
-from os import urandom
 from base64 import b64decode
 from functools import wraps
 from flask import request, g

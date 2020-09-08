@@ -1,5 +1,4 @@
 from .constants import HTTP_401_UNAUTHORIZED
-from os import path
 from flask import Response, request, render_template
 
 def gen_template(filename, status=200, add_headers={}, **kwargs):

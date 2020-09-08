@@ -1,10 +1,5 @@
 import os
-import sys
 import sqlite3
-from .utils import validate_jpeg_file
-from hashlib import sha512
-from shutil import rmtree
-from datetime import datetime
 from flask import current_app, g
 
 init_done = False

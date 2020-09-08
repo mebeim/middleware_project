@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
-import re
 import sys
 import requests
 import xml.etree.ElementTree as et
 from time import sleep
 from subprocess import Popen, PIPE
 from urllib.parse import quote
-from functools import wraps
 from collections import defaultdict
 
 BASE_URL         = sys.argv[1] if len(sys.argv) == 2 else 'http://127.0.0.1'

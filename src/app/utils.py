@@ -1,6 +1,5 @@
 import re
 from struct import unpack
-from os import urandom
 
 USER_ID_REGEXP   = re.compile(r'^[a-zA-Z0-9_-]{1,255}$')
 USER_NAME_REGEXP = re.compile(r'^[ a-zA-Z0-9_.-]{1,255}$')
