@@ -1,7 +1,7 @@
 version: '3'
 
 services:
-  rest:
+  server:
     build: .
     container_name: rest-jpg
     restart: always

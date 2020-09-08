@@ -16,7 +16,7 @@ jobs:
         run: docker-compose build
 
       - name: Start test container
-        run: docker-compose run --service-ports --detach --rm rest --test
+        run: docker-compose run --service-ports --detach --rm server --test
 
       - name: Install test dependencies
         run: pip3 install -r test/requirements.txt
