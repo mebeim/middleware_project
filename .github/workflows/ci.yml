@@ -1,0 +1,27 @@
+name: CI
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    name: CI
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Build container
+        run: docker-compose build
+
+      - name: Start test container
+        run: docker-compose run --service-ports --detach --rm rest --test
+
+      - name: Install test dependencies
+        run: pip3 install -r test/requirements.txt
+
+      - name: Run tests
+        run: |
+          cd test
+          ./test.py
