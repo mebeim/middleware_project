@@ -50,7 +50,7 @@ def users():
 @auth.auth_required()
 def user(**urlparams):
 	user_id = urlparams['id']
-	if g.auth_type == 'oauth' and g.user.id != user_id:
+	if g.oauth and g.user.id != user_id:
 		return view.error('Cannot access other users.', HTTP_403_FORBIDDEN)
 
 	user = User.get(user_id)
@@ -74,7 +74,7 @@ def user_delete(**urlparams):
 @auth.auth_required()
 def user_images(**urlparams):
 	user_id = urlparams['id']
-	if g.auth_type == 'oauth' and g.user.id != user_id:
+	if g.oauth and g.user.id != user_id:
 		return view.error('Cannot access images owned by other users.', HTTP_403_FORBIDDEN)
 
 	user = User.get(user_id)
@@ -111,7 +111,7 @@ def image_get(**urlparams):
 	if image is None:
 		abort(HTTP_404_NOT_FOUND)
 
-	if g.auth_type == 'oauth' and image.owner_id != g.user.id:
+	if g.oauth and image.owner_id != g.user.id:
 		return view.error('Cannot access images owned by other users.', HTTP_403_FORBIDDEN)
 
 	return view.image(image)
@@ -138,7 +138,7 @@ def image_download(**urlparams):
 	if image is None:
 		abort(HTTP_404_NOT_FOUND)
 
-	if g.auth_type == 'oauth' and image.owner_id != g.user.id:
+	if g.oauth and image.owner_id != g.user.id:
 		return view.error('Cannot access images owned by other users.', HTTP_403_FORBIDDEN)
 
 	return send_file(image.path)

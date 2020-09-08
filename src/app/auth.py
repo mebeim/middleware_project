@@ -52,8 +52,8 @@ def auth_required(allow_user=True, allow_oauth='read', owner_only=False):
 					return view.error('Token has insufficient authorization scopes.', HTTP_403_FORBIDDEN)
 
 				g.token = token
-				g.user = token.user
-				g.auth_type = 'oauth'
+				g.user  = token.user
+				g.oauth = True
 
 			else:
 				if not allow_user:
@@ -63,15 +63,11 @@ def auth_required(allow_user=True, allow_oauth='read', owner_only=False):
 				if user is None:
 					return view.error('Invalid credentials.', HTTP_401_UNAUTHORIZED)
 
-				g.user = user
-				g.auth_type = 'basic'
+				g.user  = user
+				g.oauth = False
 
 			return f(*args, **kwargs)
 
 		return authenticate
 
 	return decorator
-
-
-def can_write():
-	return g.auth_type == 'basic' or (g.auth_type == 'oauth' and 'write' in g.oauth_scopes)
