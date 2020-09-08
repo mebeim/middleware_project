@@ -1,27 +1,15 @@
 version: '3'
 
 services:
-  dev:
+  rest:
     build: .
-    container_name: rest
-    command: --reset-db
+    container_name: rest-jpg
     restart: always
+    user: app
     volumes:
-     - ./src:/app/src:ro
-     - ./templates:/app/templates:ro
      - ./db:/app/db
-    ports:
-      - '5000:5000'
-
-  production:
-    build: .
-    container_name: rest
-    command: --prod
-    restart: always
-    volumes:
-     - ./src:/app/src:ro
-     - ./templates:/app/templates:ro
-     - ./db:/app/db
+     - ./images:/app/images
      - ./https:/app/https:ro
     ports:
       - '443:5000'
+      - '80:5001'

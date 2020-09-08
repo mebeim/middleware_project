@@ -4,10 +4,10 @@ import sys
 from app import app
 
 if __name__ == '__main__':
-	print('Running:', *sys.argv)
+	print('Running:', *sys.argv, file=sys.stderr)
 
-	if '--prod' in sys.argv:
-		context = ('https/fullchain.pem', 'https/privkey.pem')
-		app.run(host='0.0.0.0', ssl_context=context)
+	if '--test' in sys.argv:
+		app.run(host='0.0.0.0', port=5001)
 	else:
-		app.run(host='0.0.0.0')
+		context = ('https/fullchain.pem', 'https/privkey.pem')
+		app.run(host='0.0.0.0', port=5000, ssl_context=context)

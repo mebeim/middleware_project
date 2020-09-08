@@ -7,24 +7,23 @@ from shutil import rmtree
 from datetime import datetime
 from flask import current_app, g
 
-DID_INIT = False
+init_done = False
+
 
 def get_db():
-	global DID_INIT
+	global init_done
 
 	if 'db' not in g:
 		db_path = current_app.config['database']
-		init = not DID_INIT and ('--reset-db' in sys.argv or not os.path.isfile(db_path))
+		init_done = os.path.isfile(db_path)
 		g.db = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
 		g.db.row_factory = sqlite3.Row
 
-		if init:
-			schema_path = current_app.config['schema']
+		if not init_done:
+			with open(current_app.config['schema']) as f:
+				g.db.executescript(f.read())
 
-			with current_app.open_resource(schema_path) as f:
-				g.db.executescript(f.read().decode())
-
-			DID_INIT = True
+			init_done = True
 
 	return g.db
 

@@ -1,14 +1,17 @@
+import sys
 from . import db
 from os import urandom, makedirs, path
 from flask import Flask
 
-app = Flask('rest-jpg')
+app  = Flask('rest-jpg')
+home = path.expanduser('~')
+test = '--test' in sys.argv
 
 app.secret_key = urandom(64)
 app.config.update({
-	'database'   : 'db/database.sqlite',
-	'schema'     : 'db/schema.sql',
-	'upload_path': path.expanduser('~') + '/images'
+	'schema'     : home + '/db/schema.sql',
+	'database'   : '/tmp/db.sqlite' if test else (home + '/db/db.sqlite'),
+	'upload_path': '/tmp/images' if test else (home + '/images')
 })
 
 makedirs(app.config['upload_path'], exist_ok=True)
