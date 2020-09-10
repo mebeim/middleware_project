@@ -192,7 +192,7 @@ def oauth_list_tokens():
 
 
 @app.route('/oauth/token/<tok>', methods=('GET',))
-@auth.auth_required()
+@auth.auth_required(allow_client=True)
 def oauth_get_token(**urlparams):
 	token = Token.get(urlparams['tok'])
 	if token is None:
