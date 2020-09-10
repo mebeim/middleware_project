@@ -64,12 +64,12 @@ def client_with_secret(c):
 
 
 def token(t):
-	return gen_template('token', value=t.value, user_id=t.user_id, scopes=' '.join(t.scopes))
+	return gen_template('token', value=t.value, user_id=t.user_id, client_id=t.client_id, scopes=' '.join(t.scopes))
 
 
 def user_tokens(tokens):
 	def g():
 		for t in tokens:
-			yield t.value, t.user_id, t.scopes
+			yield t.value, t.user_id, t.client_id, t.scopes
 
 	return gen_template('tokens', tokens=g())

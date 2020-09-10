@@ -5,9 +5,9 @@
 
 <token>
 	<value>{{value}}</value>
+	<scopes>{{' '.join(scopes)}}</scopes>
 	<user-id>{{user_id}}</user-id>
 	<client-id>{{client_id}}</client-id>
-	<scopes>{{scopes}}</scopes>
 	<link rel="user">{{request.host_url}}user/{{user_id}}</link>
 	<link rel="client">{{request.host_url}}oauth/client/{{client_id}}</link>
 </token>
