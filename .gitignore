@@ -1,4 +1,6 @@
 /.trash
 /NOTES.md
-/db/database.sqlite
+/images
+/https
+/db/db.sqlite
 __pycache__
