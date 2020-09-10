@@ -33,6 +33,7 @@ TEST_OAUTH_REQUEST_PARAMS = {
 tests            = []
 images           = defaultdict(list)
 client_id        = None
+client_secret    = None
 user_token_read  = None
 user_token_write = None
 
@@ -80,13 +81,13 @@ def extract_all(resp, xpath):
 ### UNIT TESTS #################################################################
 
 @test
-def user_registration_success():
+def user_register_success():
 	expect(200, post, '/register', data=TEST_USER_A)
 	expect(200, post, '/register', data=TEST_USER_B)
 
 
 @test
-def user_registration_already_registered():
+def user_register_already_registered():
 	expect(403, post, '/register', data=TEST_USER_A)
 
 	d = TEST_USER_A
@@ -95,24 +96,18 @@ def user_registration_already_registered():
 
 
 @test
-def user_registration_missing_paramaeters():
+def user_register_missing_paramaeters():
 	expect(400, post, '/register', data={'id': 'x', 'name': 'x'})
 	expect(400, post, '/register', data={'id': 'x', 'password': 'x'})
 	expect(400, post, '/register', data={'name': 'x', 'password': 'x'})
 
 
 @test
-def user_registration_invalid_parameters():
+def user_register_invalid_parameters():
 	expect(400, post, '/register', data={'id': 'x?', 'name': 'x', 'password': 'x'})
 	expect(400, post, '/register', data={'id': 'x', 'name': 'x?', 'password': 'x'})
 	expect(400, post, '/register', data={'id': '', 'name': 'x', 'password': 'x'})
 	expect(400, post, '/register', data={'id': 'x', 'name': '', 'password': 'x'})
-
-
-@test
-def user_delete():
-	expect(200, delete, '/user/' + TEST_USER_B['id'], auth=TEST_USER_B_AUTH)
-	expect(200, post, '/register', data=TEST_USER_B)
 
 
 @test
@@ -181,9 +176,10 @@ def image_delete():
 @test
 def oauth_client_registration():
 	global client_id
+	global client_secret
+
 	r = expect(200, post, '/oauth/register-client', data=TEST_OAUTH_CLIENT)
-	client_id = extract(r, 'id')
-	extract(r, 'secret')
+	client_id, client_secret = extract(r, 'id'), extract(r, 'secret')
 
 
 @test
@@ -261,6 +257,32 @@ def oauth_delete_image():
 	image_id = images[TEST_USER_A['id']][0]
 	expect(403, delete, f'/image/{image_id}', token=user_token_read)
 	expect(200, delete, f'/image/{image_id}', token=user_token_write)
+
+
+@test
+def oauth_delete_token():
+	expect(200, delete, f'/oauth/token/{user_token_write}', auth=TEST_USER_A_AUTH)
+	expect(404, get, f'/oauth/token/{user_token_write}', auth=TEST_USER_A_AUTH)
+	expect(401, get, f'/user/{TEST_USER_A["id"]}', token=user_token_write)
+
+
+@test
+def user_delete_leaves_no_trace():
+	global images
+
+	uid = TEST_USER_A['id']
+	expect(200, delete, f'/user/{uid}', auth=TEST_USER_A_AUTH)
+	expect(401, get, f'/user/{uid}', auth=TEST_USER_A_AUTH)
+	expect(401, get, f'/user/{uid}', token=user_token_read)
+	expect(404, get, f'/user/{uid}', auth=TEST_USER_B_AUTH)
+	expect(404, get, f'/user/{uid}/images', auth=TEST_USER_B_AUTH)
+	expect(404, get, f'/images/{images[uid][0]}', auth=TEST_USER_B_AUTH)
+
+
+@test
+def oauth_client_delete():
+	expect(200, delete, f'/oauth/client/{client_id}', auth=(client_id, client_secret))
+	expect(404, get, f'/oauth/client/{client_id}', auth=TEST_USER_B_AUTH)
 
 
 ### MAIN #######################################################################
