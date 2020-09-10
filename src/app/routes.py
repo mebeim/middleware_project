@@ -1,7 +1,7 @@
 from . import app, view, auth
 from .model import *
 from .constants import *
-from .utils import validate_user_id, validate_user_name, validate_jpeg_file
+from .utils import validate_user_id, validate_user_name, validate_jpeg_file, need_params
 from flask import request, abort, send_file, g
 
 @app.errorhandler(HTTP_400_BAD_REQUEST)
@@ -19,19 +19,17 @@ def error_handler(error):
 
 
 @app.route('/register', methods=('POST',))
+@need_params('id', 'name', 'password')
 def register():
 	user_id   = request.form.get('id')
 	user_name = request.form.get('name', '').strip()
 	user_pw   = request.form.get('password')
 
-	if not user_id or not user_name or not user_pw:
-		return view.error('Missing parameters.', HTTP_400_BAD_REQUEST)
-
 	if not validate_user_id(user_id):
 		return view.error('Invalid user ID.', HTTP_400_BAD_REQUEST)
 
 	if not validate_user_name(user_name):
-		return view.error('Invalid name.', HTTP_400_BAD_REQUEST)
+		return view.error('Invalid user name.', HTTP_400_BAD_REQUEST)
 
 	user = User.register(user_id, user_name, user_pw)
 	if not user:
@@ -64,7 +62,7 @@ def user(**urlparams):
 @auth.auth_required(allow_oauth=False)
 def user_delete(**urlparams):
 	if urlparams['id'] != g.user.id:
-		return view.error('Cannot delete a user different from yourself.', HTTP_403_FORBIDDEN)
+		return view.error('Cannot delete a user different from the currently authenticated user.', HTTP_403_FORBIDDEN)
 
 	g.user.delete()
 	return view.success('User successfully deleted.')
@@ -86,14 +84,15 @@ def user_images(**urlparams):
 
 @app.route('/upload', methods=('POST',))
 @auth.auth_required(allow_oauth='write')
+@need_params('title')
 def image_upload():
-	image_file  = request.files.get('file')
-	if image_file is None:
-		return view.error('Missing required request parameter: file.', HTTP_400_BAD_REQUEST)
+	image_file = request.files.get('file')
+	if not image_file:
+		return view.error('Missing required image file.', HTTP_400_BAD_REQUEST)
 
 	image_title = request.form.get('title', '').strip()
 	if not image_title:
-		return view.error('Missing required request parameter: title.', HTTP_400_BAD_REQUEST)
+		return view.error('Invalid image title.', HTTP_400_BAD_REQUEST)
 
 	if not validate_jpeg_file(image_file):
 		return view.error('Unsupported file type, only JPEG allowed.', HTTP_400_BAD_REQUEST)
@@ -145,14 +144,10 @@ def image_download(**urlparams):
 
 
 @app.route('/oauth/register-client', methods=('POST',))
+@need_params('name', 'redirect_uri')
 def oauth_register_client():
-	client_name = request.form.get('name', '').strip()
-	if not client_name:
-		return view.error('Missing required request parameter: name.', HTTP_400_BAD_REQUEST)
-
+	client_name  = request.form.get('name', '').strip()
 	redirect_uri = request.form.get('redirect_uri', '').strip()
-	if not redirect_uri:
-		return view.error('Missing required request parameter: redirect_uri.', HTTP_400_BAD_REQUEST)
 
 	if not validate_user_name(client_name):
 		return view.error('Invalid name.', HTTP_400_BAD_REQUEST)
@@ -163,13 +158,8 @@ def oauth_register_client():
 
 @app.route('/oauth/authorize', methods=('GET',))
 @auth.auth_required(allow_oauth=False)
+@need_params('response_type', 'response_mode', 'client_id', 'redirect_uri', 'scopes')
 def oauth_authorize():
-	keys = ('response_type', 'response_mode', 'client_id', 'redirect_uri', 'scopes')
-
-	for k in keys:
-		if k not in request.args:
-			return view.error(f'Missing required request parameter: {k}.', HTTP_400_BAD_REQUEST)
-
 	response_type = request.args['response_type']
 	if response_type != 'token':
 		return view.error('Unsupported response_type.', HTTP_400_BAD_REQUEST)

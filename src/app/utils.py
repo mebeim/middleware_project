@@ -1,5 +1,9 @@
 import re
+from . import view
+from .constants import HTTP_400_BAD_REQUEST
 from struct import unpack
+from functools import wraps
+from flask import request
 
 USER_ID_REGEXP   = re.compile(r'^[a-zA-Z0-9_-]{1,255}$')
 USER_NAME_REGEXP = re.compile(r'^[ a-zA-Z0-9_.-]{1,255}$')
@@ -25,3 +29,19 @@ def validate_jpeg_file(file):
 	file.seek(0)
 
 	return res
+
+def need_params(*needed):
+	def decorator(f):
+		@wraps(f)
+		def check_params(*args, **kwargs):
+			params = request.args if request.method == 'GET' else request.form
+
+			for k in needed:
+				if not params.get(k, ''):
+					return view.error(f'Missing required request parameter: {k}.', HTTP_400_BAD_REQUEST)
+
+			return f(*args, **kwargs)
+
+		return check_params
+
+	return decorator

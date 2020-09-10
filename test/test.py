@@ -19,11 +19,12 @@ TEST_OAUTH_CLIENT_CALLBACK_PORT = 9999
 
 TEST_OAUTH_CLIENT = {
 	'name'        : 'Test Client',
-	'redirect_uri': f'http://localhost:{TEST_OAUTH_CLIENT_CALLBACK_PORT}/ok'
+	'redirect_uri': f'http://127.0.0.1:{TEST_OAUTH_CLIENT_CALLBACK_PORT}/ok'
 }
 
 TEST_OAUTH_REQUEST_PARAMS = {
 	'response_type': 'token',
+	'response_mode': 'fragment',
 	'client_id'    : None,
 	'scopes'       : None,
 	'redirect_uri' : TEST_OAUTH_CLIENT['redirect_uri']
