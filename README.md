@@ -31,7 +31,7 @@ To run in this mode, first build with `docker-compose build` and then `run` the
 
 ```
 $ docker-compose build
-$ docker-compose run --service-ports --rm service --test
+$ docker-compose run --service-ports --rm server --test
 ```
 
 ### Production
@@ -54,10 +54,11 @@ server in *development* mode and then start the `test.py` script from within the
 `test/` directory.
 
 ```
-$ docker-compose run --service-ports --rm service --test
+$ docker-compose run --service-ports --rm server --test
 
 # in another shell
 $ cd test
+$ pip3 install --user -r requirements.txt # if needed
 $ ./test.py
 ```
 
