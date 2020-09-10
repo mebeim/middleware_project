@@ -80,13 +80,13 @@ def extract_all(resp, xpath):
 ### UNIT TESTS #################################################################
 
 @test
-def test_user_registration_success():
+def user_registration_success():
 	expect(200, post, '/register', data=TEST_USER_A)
 	expect(200, post, '/register', data=TEST_USER_B)
 
 
 @test
-def test_user_registration_already_registered():
+def user_registration_already_registered():
 	expect(403, post, '/register', data=TEST_USER_A)
 
 	d = TEST_USER_A
@@ -95,14 +95,14 @@ def test_user_registration_already_registered():
 
 
 @test
-def test_user_registration_missing_paramaeters():
+def user_registration_missing_paramaeters():
 	expect(400, post, '/register', data={'id': 'x', 'name': 'x'})
 	expect(400, post, '/register', data={'id': 'x', 'password': 'x'})
 	expect(400, post, '/register', data={'name': 'x', 'password': 'x'})
 
 
 @test
-def test_user_registration_invalid_parameters():
+def user_registration_invalid_parameters():
 	expect(400, post, '/register', data={'id': 'x?', 'name': 'x', 'password': 'x'})
 	expect(400, post, '/register', data={'id': 'x', 'name': 'x?', 'password': 'x'})
 	expect(400, post, '/register', data={'id': '', 'name': 'x', 'password': 'x'})
@@ -110,18 +110,18 @@ def test_user_registration_invalid_parameters():
 
 
 @test
-def test_user_delete():
+def user_delete():
 	expect(200, delete, '/user/' + TEST_USER_B['id'], auth=TEST_USER_B_AUTH)
 	expect(200, post, '/register', data=TEST_USER_B)
 
 
 @test
-def test_user_delete_other():
+def user_delete_other():
 	expect(403, delete, '/user/xxx', auth=TEST_USER_A_AUTH)
 
 
 @test
-def test_user_get():
+def user_get():
 	r = expect(200, get, '/user/' + TEST_USER_A['id'], auth=TEST_USER_A_AUTH)
 	assert extract(r, 'name') == TEST_USER_A['name']
 
@@ -130,13 +130,13 @@ def test_user_get():
 
 
 @test
-def test_user_list():
+def user_list():
 	r = expect(200, get, '/users', auth=TEST_USER_A_AUTH)
 	assert set(extract_all(r, 'user/id')) == {TEST_USER_A['id'], TEST_USER_B['id']}
 
 
 @test
-def test_image_upload():
+def image_upload():
 	global images
 
 	for i in range(1, 4):
@@ -152,7 +152,7 @@ def test_image_upload():
 
 
 @test
-def test_image_list():
+def image_list():
 	for user_id, known_ids in images.items():
 		if not known_ids:
 			continue
@@ -162,7 +162,7 @@ def test_image_list():
 
 
 @test
-def test_image_download():
+def image_download():
 	for user_id, image_ids in images.items():
 		for image_id in image_ids:
 			r = expect(200, get, f'/image/{image_id}', auth=TEST_USER_A_AUTH)
@@ -173,13 +173,13 @@ def test_image_download():
 
 
 @test
-def test_image_delete():
+def image_delete():
 	image_id = max(images[TEST_USER_A['id']])
 	r = expect(200, delete, f'/image/{image_id}', auth=TEST_USER_A_AUTH)
 
 
 @test
-def test_oauth_client_registration():
+def oauth_client_registration():
 	global client_id
 	r = expect(200, post, '/oauth/register-client', data=TEST_OAUTH_CLIENT)
 	client_id = extract(r, 'id')
@@ -187,7 +187,7 @@ def test_oauth_client_registration():
 
 
 @test
-def test_oauth_authorize():
+def oauth_authorize():
 	global user_token_read
 	global user_token_write
 
@@ -212,7 +212,7 @@ def test_oauth_authorize():
 
 
 @test
-def test_oauth_authorize_invalid_scopes():
+def oauth_authorize_invalid_scopes():
 	params = TEST_OAUTH_REQUEST_PARAMS
 	params.update({'redirect_uri': 'http://evil.com/ok'})
 	params.update({'client_id': client_id, 'scopes': 'lol'})
@@ -222,7 +222,7 @@ def test_oauth_authorize_invalid_scopes():
 
 
 @test
-def test_oauth_authorize_invalid_redirect_uri():
+def oauth_authorize_invalid_redirect_uri():
 	params = TEST_OAUTH_REQUEST_PARAMS
 	params.update({'redirect_uri': 'http://evil.com/ok'})
 	params.update({'client_id': client_id, 'scopes': 'read'})
@@ -232,32 +232,32 @@ def test_oauth_authorize_invalid_redirect_uri():
 
 
 @test
-def test_oauth_get_client():
+def oauth_get_client():
 	expect(200, get, f'/oauth/client/{client_id}', auth=TEST_USER_A_AUTH)
 	expect(200, get, f'/oauth/client/{client_id}', token=user_token_read)
 
 
 @test
-def test_oauth_no_token():
+def oauth_no_token():
 	expect(401, get, f'/oauth/client/{client_id}', token='')
 
 
 @test
-def test_oauth_get_image():
+def oauth_get_image():
 	image_id = images[TEST_USER_A['id']][0]
 	expect(200, get, f'/image/{image_id}', token=user_token_read)
 	expect(200, get, f'/image/{image_id}', token=user_token_write)
 
 
 @test
-def test_oauth_get_image_other_user():
+def oauth_get_image_other_user():
 	image_id = images[TEST_USER_B['id']][0]
 	expect(403, get, f'/image/{image_id}' , token=user_token_read)
 	expect(403, get, f'/image/{image_id}' , token=user_token_write)
 
 
 @test
-def test_oauth_delete_image():
+def oauth_delete_image():
 	image_id = images[TEST_USER_A['id']][0]
 	expect(403, delete, f'/image/{image_id}', token=user_token_read)
 	expect(200, delete, f'/image/{image_id}', token=user_token_write)
@@ -266,9 +266,11 @@ def test_oauth_delete_image():
 ### MAIN #######################################################################
 
 if __name__ == '__main__':
+	pad = max(map(lambda t: len(t.__name__), tests))
+
 	for t in tests:
 		ex = None
-		print(f'{t.__name__}... ', end='', flush=True)
+		print(f'{t.__name__}'.ljust(pad), end=' ', flush=True)
 
 		try:
 			t()
