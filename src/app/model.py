@@ -192,3 +192,6 @@ class Client:
 			return None
 
 		return Client(*row)
+
+	def delete(self):
+		db.write_and_commit(('DELETE FROM clients WHERE id=?', (self.id,)))

@@ -164,7 +164,7 @@ def oauth_register_client():
 @app.route('/oauth/authorize', methods=('GET',))
 @auth.auth_required(allow_oauth=False)
 def oauth_authorize():
-	keys = ('response_type', 'client_id', 'redirect_uri', 'scopes')
+	keys = ('response_type', 'response_mode', 'client_id', 'redirect_uri', 'scopes')
 
 	for k in keys:
 		if k not in request.args:
@@ -223,10 +223,19 @@ def oauth_revoke_token(**urlparams):
 
 
 @app.route('/oauth/client/<id>', methods=('GET',))
-@auth.auth_required()
+@auth.auth_required(allow_client=True)
 def oauth_get_client(**urlparams):
 	client = Client.get(urlparams['id'])
 	if client is None:
 		abort(HTTP_404_NOT_FOUND)
 
 	return view.client(client)
+
+@app.route('/oauth/client/<id>', methods=('DELETE',))
+@auth.auth_required(allow_user=False, allow_oauth=False, allow_client=True)
+def oauth_delete_client(**urlparams):
+	if g.client.id != urlparams['id']:
+		abort(HTTP_404_NOT_FOUND)
+
+	g.client.delete()
+	return view.success('Client successfully deleted.')
