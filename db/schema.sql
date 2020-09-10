@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS oauth_tokens;
 CREATE TABLE users (
 	id VARCHAR(255) PRIMARY KEY,
 	name VARCHAR(255) NOT NULL,
+	password_salt CHAR(16) NOT NULL,
 	password_hash CHAR(128) NOT NULL
 );
 

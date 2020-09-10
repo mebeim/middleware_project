@@ -38,10 +38,12 @@ class User:
 
 	@staticmethod
 	def register(idd, name, password):
-		pw_hash = sha512(password.encode()).hexdigest()
+		pw_salt = os.urandom(16)
+		pw_hash = sha512(pw_salt + password.encode()).hexdigest()
+		pw_salt = pw_salt.hex()
 
 		try:
-			db.write_and_commit(('INSERT INTO users VALUES (?, ?, ?)', (idd, name, pw_hash)))
+			db.write_and_commit(('INSERT INTO users VALUES (?, ?, ?, ?)', (idd, name, pw_salt, pw_hash)))
 		except IntegrityError:
 			return None
 
@@ -49,7 +51,12 @@ class User:
 
 	@staticmethod
 	def login(idd, password):
-		pw_hash = sha512(password.encode()).hexdigest()
+		row = db.query_one('SELECT id, name, password_salt FROM users WHERE id=?', (idd,))
+		if row is None:
+			return None
+
+		pw_salt = bytes.fromhex(row[2])
+		pw_hash = sha512(pw_salt + password.encode()).hexdigest()
 
 		row = db.query_one('SELECT id, name FROM users WHERE id=? AND password_hash=?', (idd, pw_hash))
 		if row is None:
