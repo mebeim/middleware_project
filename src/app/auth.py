@@ -9,10 +9,15 @@ OAUTH_SCOPES = {'read', 'write'}
 
 def check_scopes(scopes):
 	sc = set(scopes.strip().split())
-	return sc and all(s in OAUTH_SCOPES for s in sc)
+
+	if sc and all(s in OAUTH_SCOPES for s in sc):
+		sc.add('read')
+		return ' '.join(sc)
+	else:
+		return None
 
 
-def auth_required(allow_user=True, allow_oauth='read', owner_only=False):
+def auth_required(allow_user=True, allow_oauth='read', allow_client=False):
 	def decorator(f):
 		@wraps(f)
 		def authenticate(*args, **kwargs):
@@ -24,27 +29,38 @@ def auth_required(allow_user=True, allow_oauth='read', owner_only=False):
 			except:
 				return view.error('Invalid or missing credentials.', HTTP_401_UNAUTHORIZED)
 
-			if kind != 'basic':
-				return view.error('Invalid authorization type.', HTTP_400_BAD_REQUEST)
+			if kind == 'basic':
+				try:
+					auth_id, auth_pw = b64decode(payload).decode().split(':')
+				except:
+					return view.error('Malformed credentials.', HTTP_400_BAD_REQUEST)
 
-			try:
-				auth_id, auth_pw = b64decode(payload).decode().split(':')
-			except:
-				return view.error('Malformed credentials.', HTTP_400_BAD_REQUEST)
+				client = None
+				user   = None
 
-			if auth_id.startswith('$'):
+				if auth_id.startswith('$'):
+					if not allow_client:
+						return view.error('Invalid credential type for this endpoint.', HTTP_400_BAD_REQUEST)
+
+					client = Client.login(auth_id, auth_pw)
+				else:
+					if not allow_user:
+						return view.error('Invalid credential type for this endpoint.', HTTP_400_BAD_REQUEST)
+
+					user = User.login(auth_id, auth_pw)
+
+				if user is None and client is None:
+					return view.error('Invalid credentials.', HTTP_401_UNAUTHORIZED)
+
+				g.user   = user
+				g.client = client
+				g.oauth  = False
+
+			elif kind == 'bearer':
 				if not allow_oauth:
 					return view.error('Invalid credential type for this endpoint.', HTTP_400_BAD_REQUEST)
 
-				client = Client.login(auth_id, auth_pw)
-				if client is None:
-					return view.error('Invalid credentials.', HTTP_401_UNAUTHORIZED)
-
-				token = request.args.get('token')
-				if token is None:
-					return view.error('Invalid token.', HTTP_401_UNAUTHORIZED)
-
-				token = Token.get(token)
+				token = Token.get(payload)
 				if token is None:
 					return view.error('Invalid token.', HTTP_401_UNAUTHORIZED)
 
@@ -56,15 +72,7 @@ def auth_required(allow_user=True, allow_oauth='read', owner_only=False):
 				g.oauth = True
 
 			else:
-				if not allow_user:
-					return view.error('Invalid credential type for this endpoint.', HTTP_400_BAD_REQUEST)
-
-				user = User.login(auth_id, auth_pw)
-				if user is None:
-					return view.error('Invalid credentials.', HTTP_401_UNAUTHORIZED)
-
-				g.user  = user
-				g.oauth = False
+				return view.error('Invalid authorization type.', HTTP_400_BAD_REQUEST)
 
 			return f(*args, **kwargs)
 

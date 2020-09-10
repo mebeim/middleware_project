@@ -139,7 +139,8 @@ class Token:
 
 	@staticmethod
 	def generate(user_id, client_id, scopes):
-		if not auth.check_scopes(scopes):
+		scopes = auth.check_scopes(scopes)
+		if scopes is None:
 			return None
 
 		while 1:

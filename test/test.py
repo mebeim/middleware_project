@@ -31,7 +31,7 @@ TEST_OAUTH_REQUEST_PARAMS = {
 
 tests            = []
 images           = defaultdict(list)
-client_auth      = None
+client_id        = None
 user_token_read  = None
 user_token_write = None
 
@@ -44,8 +44,12 @@ def test(f):
 	return f
 
 
-def expect(expected_code, method, path, *args, **kwargs):
-	r = method(path, *args, **kwargs)
+def expect(expected_code, method, path, token=None, *args, **kwargs):
+	if token is None:
+		r = method(path, *args, **kwargs)
+	else:
+		r = method(path, headers={'Authorization': f'Bearer {token}'}, *args, **kwargs)
+
 	assert r.status_code == expected_code
 	return r
 
@@ -175,9 +179,10 @@ def test_image_delete():
 
 @test
 def test_oauth_client_registration():
-	global client_auth
+	global client_id
 	r = expect(200, post, '/oauth/register-client', data=TEST_OAUTH_CLIENT)
-	client_auth = (extract(r, 'id'), extract(r, 'secret'))
+	client_id = extract(r, 'id')
+	extract(r, 'secret')
 
 
 @test
@@ -189,7 +194,7 @@ def test_oauth_authorize():
 	sleep(0.5)
 
 	params = TEST_OAUTH_REQUEST_PARAMS
-	params.update({'client_id': client_auth[0], 'scopes': 'read'})
+	params.update({'client_id': client_id, 'scopes': 'read'})
 	url = '/oauth/authorize?' + '&'.join(map(lambda kv: f'{kv[0]}={quote(kv[1])}', params.items()))
 	expect(200, get, url, auth=TEST_USER_A_AUTH)
 
@@ -209,7 +214,7 @@ def test_oauth_authorize():
 def test_oauth_authorize_invalid_scopes():
 	params = TEST_OAUTH_REQUEST_PARAMS
 	params.update({'redirect_uri': 'http://evil.com/ok'})
-	params.update({'client_id': client_auth[0], 'scopes': 'lol'})
+	params.update({'client_id': client_id, 'scopes': 'lol'})
 	url = '/oauth/authorize?' + '&'.join(map(lambda kv: f'{kv[0]}={quote(kv[1])}', params.items()))
 
 	expect(400, get, url, auth=TEST_USER_A_AUTH)
@@ -219,7 +224,7 @@ def test_oauth_authorize_invalid_scopes():
 def test_oauth_authorize_invalid_redirect_uri():
 	params = TEST_OAUTH_REQUEST_PARAMS
 	params.update({'redirect_uri': 'http://evil.com/ok'})
-	params.update({'client_id': client_auth[0], 'scopes': 'read'})
+	params.update({'client_id': client_id, 'scopes': 'read'})
 	url = '/oauth/authorize?' + '&'.join(map(lambda kv: f'{kv[0]}={quote(kv[1])}', params.items()))
 
 	expect(400, get, url, auth=TEST_USER_A_AUTH)
@@ -227,37 +232,34 @@ def test_oauth_authorize_invalid_redirect_uri():
 
 @test
 def test_oauth_get_client():
-	expect(200, get, f'/oauth/client/{client_auth[0]}', auth=TEST_USER_A_AUTH)
-	expect(200, get, f'/oauth/client/{client_auth[0]}?token={user_token_read}', auth=client_auth)
+	expect(200, get, f'/oauth/client/{client_id}', auth=TEST_USER_A_AUTH)
+	expect(200, get, f'/oauth/client/{client_id}', token=user_token_read)
 
 
 @test
 def test_oauth_no_token():
-	expect(401, get, f'/oauth/client/{client_auth[0]}', auth=client_auth)
+	expect(401, get, f'/oauth/client/{client_id}', token='')
 
 
 @test
 def test_oauth_get_image():
 	image_id = images[TEST_USER_A['id']][0]
-	expect(200, get, f'/image/{image_id}?token={user_token_read}', auth=client_auth)
+	expect(200, get, f'/image/{image_id}', token=user_token_read)
+	expect(200, get, f'/image/{image_id}', token=user_token_write)
 
 
 @test
 def test_oauth_get_image_other_user():
 	image_id = images[TEST_USER_B['id']][0]
-	expect(403, get, f'/image/{image_id}?token={user_token_read}', auth=client_auth)
+	expect(403, get, f'/image/{image_id}' , token=user_token_read)
+	expect(403, get, f'/image/{image_id}' , token=user_token_write)
 
 
 @test
-def test_oauth_delete_image_not_allowed():
+def test_oauth_delete_image():
 	image_id = images[TEST_USER_A['id']][0]
-	expect(403, delete, f'/image/{image_id}?token={user_token_read}', auth=client_auth)
-
-
-@test
-def test_oauth_delete_image_allowed():
-	image_id = images[TEST_USER_A['id']][0]
-	expect(200, delete, f'/image/{image_id}?token={user_token_write}', auth=client_auth)
+	expect(403, delete, f'/image/{image_id}', token=user_token_read)
+	expect(200, delete, f'/image/{image_id}', token=user_token_write)
 
 
 ### MAIN #######################################################################
