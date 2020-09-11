@@ -69,15 +69,14 @@ generation tests are run.
 
 ---
 This project is distributed under the terms of the Apache License v2.0.
-See file [`LICENSE`][license] for further reference.
+See file [`LICENSE`][license-url] for further reference.
 
 
 [github-actions-url]: https://github.com/mebeim/middleware_project/actions
 [github-actions-image]: https://github.com/mebeim/middleware_project/workflows/CI/badge.svg?branch=master
-[license-url]: https://github.com/mebeim/middleware_project/blob/master/LICENSE.md
+[license-url]: https://github.com/mebeim/middleware_project/blob/master/LICENSE
 [license-image]: https://img.shields.io/badge/license-Apache%202.0-green
 [project-course]: https://www11.ceda.polimi.it/schedaincarico/schedaincarico/controller/scheda_pubblica/SchedaPublic.do?&evn_default=evento&c_classe=694795&polij_device_category=DESKTOP&__pj0=0&__pj1=7908374dbcd5f0ff305b0e84491f033b
 [polimi]: https://www.polimi.it/
 [api-doc]: https://documenter.getpostman.com/view/12652042/TVCmQjJz
 [postman-app]: https://www.postman.com/downloads/
-[license]: https://github.com/mebeim/middleware_project/blob/master/LICENSE
